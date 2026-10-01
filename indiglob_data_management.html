@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indiglob Data Management</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Hover image expansion */
+        .hover-expand {
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease;
+        }
+        .hover-expand:hover {
+            transform: scale(2.5);
+            z-index: 50;
+            position: relative;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        }
+        
+        /* Table cell smooth transitions */
+        td { transition: background-color 0.15s ease; }
+    </style>
+</head>
+<body class="bg-[#f8fafc] text-gray-800 min-h-screen flex flex-col">
+
+    <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-20">
+        <div class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-2">
+                <i class="ph-fill ph-storefront text-3xl text-indigo-600"></i>
+                <h1 class="text-xl font-bold text-gray-900 tracking-tight">Indiglob Data Management</h1>
+            </div>
+            
+            <div class="flex flex-wrap items-center justify-center gap-2 sm:gap-3 w-full sm:w-auto">
+                <button onclick="window.openSupplierManager(true)" class="flex-1 sm:flex-none justify-center flex items-center gap-2 px-3 sm:px-4 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg font-medium transition-colors border border-indigo-200 shadow-sm text-sm whitespace-nowrap">
+                    <i class="ph ph-users"></i> Manage Suppliers
+                </button>
+                <button onclick="window.openProductModal()" class="flex-1 sm:flex-none justify-center flex items-center gap-2 px-3 sm:px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg font-medium transition-colors shadow-sm text-sm whitespace-nowrap">
+                    <i class="ph ph-plus-circle"></i> Add Product
+                </button>
+                <button onclick="window.exportToCSV()" class="flex-1 sm:flex-none justify-center flex items-center gap-2 px-3 sm:px-4 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg font-medium transition-colors border border-emerald-200 shadow-sm text-sm whitespace-nowrap">
+                    <i class="ph ph-file-csv"></i> Export
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex flex-col gap-6 relative z-10">
+        
+        <!-- Search and Info -->
+        <div class="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-3 rounded-xl shadow-sm border border-gray-200">
+            <div class="relative w-full sm:w-96">
+                <i class="ph ph-magnifying-glass absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-lg"></i>
+                <input type="text" id="searchInput" placeholder="Search product name..." 
+                       class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow text-sm"
+                       oninput="window.handleSearch()">
+            </div>
+            <div class="text-sm text-gray-500 font-medium px-2" id="paginationInfo">
+                Loading data...
+            </div>
+        </div>
+
+        <!-- Table Container (Mobile Responsive wrapper) -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex-grow flex flex-col min-h-[500px]">
+            <div class="overflow-x-auto w-full flex-grow no-scrollbar">
+                <table class="min-w-full divide-y divide-gray-200" id="mainTable">
+                    <thead class="bg-slate-50 sticky top-0 z-10 shadow-sm">
+                        <tr id="tableHeaderRow">
+                            <!-- Headers injected via JS -->
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-100" id="tableBody">
+                        <!-- Rows injected via JS -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination Controls -->
+            <div class="bg-slate-50 px-4 py-3 border-t border-gray-200 flex items-center justify-between sm:px-6 mt-auto sticky bottom-0">
+                <div class="flex-1 flex justify-between sm:hidden">
+                    <button onclick="window.prevPage()" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Prev</button>
+                    <button onclick="window.nextPage()" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Next</button>
+                </div>
+                <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-sm text-gray-700" id="paginationDetails">
+                            Showing <span class="font-medium">0</span> to <span class="font-medium">0</span> of <span class="font-medium">0</span> results
+                        </p>
+                    </div>
+                    <div>
+                        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                            <button onclick="window.prevPage()" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                <span class="sr-only">Previous</span><i class="ph ph-caret-left"></i>
+                            </button>
+                            <div id="pageNumbers" class="flex"></div>
+                            <button onclick="window.nextPage()" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                <span class="sr-only">Next</span><i class="ph ph-caret-right"></i>
+                            </button>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Supplier Management Modal -->
+    <div id="supplierManagerModal" class="fixed inset-0 z-[60] hidden overflow-y-auto" aria-modal="true">
+        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 bg-gray-900 bg-opacity-50 backdrop-blur-sm transition-opacity" onclick="window.closeSupplierManager()"></div>
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+            <div class="inline-block align-bottom bg-white rounded-xl text-left shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl w-full flex flex-col max-h-[90vh]">
+                
+                <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-slate-50 rounded-t-xl shrink-0">
+                    <h3 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                        <i class="ph-fill ph-users-three text-indigo-600 text-xl"></i> Supplier Management
+                    </h3>
+                    <button onclick="window.closeSupplierManager()" class="text-gray-400 hover:text-gray-700 transition-colors">
+                        <i class="ph ph-x text-xl"></i>
+                    </button>
+                </div>
+
+                <div class="flex-grow overflow-y-auto p-4 sm:p-6 bg-white no-scrollbar flex flex-col md:flex-row gap-6">
+                    <!-- Add/Edit Form -->
+                    <div class="w-full md:w-1/3 bg-indigo-50/40 border border-indigo-100 rounded-xl p-5 h-fit shrink-0">
+                        <h4 id="supplierFormTitle" class="text-sm font-semibold text-indigo-900 mb-4 flex items-center gap-2">
+                            <i class="ph ph-user-plus"></i> Add New Supplier
+                        </h4>
+                        <form id="supplierForm" onsubmit="window.handleSupplierSubmit(event)" class="space-y-3">
+                            <input type="hidden" id="editingSupplierId">
+                            <input type="text" id="supName" placeholder="Supplier Name *" required class="w-full border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                            <input type="text" id="supCompany" placeholder="Company Name *" required class="w-full border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                            <input type="text" id="supNick" placeholder="Nick Name (For table headers)" class="w-full border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                            <input type="text" id="supContact" placeholder="Contact Number (Optional)" class="w-full border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                            <textarea id="supAddress" placeholder="Address (Optional)" rows="2" class="w-full border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"></textarea>
+                            
+                            <div class="flex gap-2 pt-2">
+                                <button type="submit" id="supplierFormSubmitBtn" class="flex-1 rounded-lg bg-indigo-600 text-sm font-medium text-white hover:bg-indigo-700 py-2 transition-colors">
+                                    Save Supplier
+                                </button>
+                                <button type="button" onclick="window.resetSupplierForm()" class="px-3 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors" title="Clear form">
+                                    <i class="ph ph-eraser text-lg"></i>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Supplier List -->
+                    <div class="w-full md:w-2/3 flex flex-col min-h-[300px]">
+                        <h4 class="text-sm font-semibold text-gray-900 mb-3 border-b pb-2 flex justify-between items-center shrink-0">
+                            <span>Saved Suppliers</span>
+                            <span id="supplierCountBadge" class="bg-gray-100 text-gray-600 py-0.5 px-2 rounded-full text-xs font-medium">0</span>
+                        </h4>
+                        <div id="supplierListContainer" class="space-y-3 overflow-y-auto pr-2 pb-4">
+                            <!-- Injected via JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Product Add/Edit Modal -->
+    <div id="productModal" class="fixed inset-0 z-[60] hidden overflow-y-auto" aria-modal="true">
+        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 bg-gray-900 bg-opacity-50 backdrop-blur-sm transition-opacity" onclick="window.closeProductModal()"></div>
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+            <div class="inline-block align-bottom bg-white rounded-xl text-left shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl w-full flex flex-col max-h-[90vh]">
+                <form id="productForm" onsubmit="window.handleProductSubmit(event)" class="flex flex-col h-full">
+                    <input type="hidden" id="editingProductId" value="">
+                    
+                    <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-slate-50 rounded-t-xl shrink-0">
+                        <h3 class="text-lg font-semibold text-gray-900 flex items-center gap-2" id="productModalTitle">
+                            <i class="ph-fill ph-package text-blue-600 text-xl"></i> Add New Product
+                        </h3>
+                        <button type="button" onclick="window.closeProductModal()" class="text-gray-400 hover:text-gray-700 transition-colors">
+                            <i class="ph ph-x text-xl"></i>
+                        </button>
+                    </div>
+                        
+                    <div class="p-6 bg-white space-y-5 overflow-y-auto">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Item Name *</label>
+                                <input type="text" id="prodName" required class="w-full border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Carton Size *</label>
+                                <input type="text" id="prodSize" placeholder="e.g., 200, 24 Pcs/Crtn" required class="w-full border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                            </div>
+                        </div>
+
+                        <div class="border-t border-gray-100 pt-4">
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-2 gap-2">
+                                <label class="block text-sm font-medium text-gray-700">Product Images</label>
+                                <span class="text-[10px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 whitespace-nowrap"><i class="ph-fill ph-warning-circle"></i> Max 5 imgs. Keep sizes small for DB.</span>
+                            </div>
+                            <div class="grid grid-cols-2 sm:grid-cols-5 gap-3" id="imageUploadContainer">
+                                <!-- Inputs generated by JS -->
+                            </div>
+                            <div id="existingImagesContainer" class="hidden"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-gray-50 px-6 py-4 flex flex-row-reverse gap-3 rounded-b-xl border-t border-gray-200 shrink-0">
+                        <button type="submit" class="inline-flex justify-center rounded-lg shadow-sm px-5 py-2 bg-blue-600 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
+                            Save Product
+                        </button>
+                        <button type="button" onclick="window.closeProductModal()" class="inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-5 py-2 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                            Cancel
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert / Confirm Dialog -->
+    <div id="alertModal" class="fixed inset-0 z-[100] hidden overflow-y-auto" aria-modal="true">
+        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 bg-gray-900 bg-opacity-60 backdrop-blur-sm transition-opacity"></div>
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+            <div class="inline-block align-bottom bg-white rounded-xl text-left shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-sm w-full overflow-hidden">
+                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div class="sm:flex sm:items-start">
+                        <div id="alertIconContainer" class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
+                            <i id="alertIcon" class="ph ph-info text-blue-600 text-xl"></i>
+                        </div>
+                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                            <h3 class="text-lg leading-6 font-semibold text-gray-900" id="alertTitle">Notification</h3>
+                            <div class="mt-2">
+                                <p class="text-sm text-gray-500" id="alertMessage"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 px-4 py-3 sm:px-6 flex justify-end gap-2 border-t border-gray-100" id="alertActions">
+                    <!-- Buttons injected via JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase Integration Script -->
+    <script type="module">
+        // Import Firebase Core and Realtime Database
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        // Firebase Configuration (Exact config requested)
+        const firebaseConfig = {
+            apiKey: "AIzaSyDdJyENlXcr0LG8hKwbAkG3y8eRe0TXP4E",
+            authDomain: "indiglob-indiamart.firebaseapp.com",
+            databaseURL: "https://indiglob-indiamart-default-rtdb.firebaseio.com",
+            projectId: "indiglob-indiamart",
+            storageBucket: "indiglob-indiamart.firebasestorage.app",
+            messagingSenderId: "270808193556",
+            appId: "1:270808193556:web:d71c120e36ecbaa3582501"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // --- GLOBAL STATE BINDINGS ---
+        // Exposing everything to window so HTML event handlers (onclick, oninput) can access them.
+        window.suppliers = [];
+        window.products = [];
+        window.filteredProducts = [];
+        window.currentPage = 1;
+        window.itemsPerPage = 100;
+        window.currentConfirmCallback = null;
+
+        // --- DATABASE OPERATIONS ---
+
+        // 1. Fetch data from Firebase
+        window.loadData = async function() {
+            const dbRef = ref(db);
+            document.getElementById('paginationInfo').innerText = "Syncing with cloud...";
+            
+            try {
+                const snapshot = await get(child(dbRef, `indiglobData`));
+                if (snapshot.exists()) {
+                    const data = snapshot.val();
+                    window.products = data.products || [];
+                    window.suppliers = data.suppliers || [];
+                } else {
+                    window.products = [];
+                    window.suppliers = [];
+                }
+                
+                // Keep filtered list in sync on load
+                window.filteredProducts = [...window.products];
+                
+                window.renderTable();
+            } catch (error) {
+                console.error("Error loading data from Firebase:", error);
+                window.customAlert("Connection Error", "Failed to load data from Firebase. Check console for details.", "error");
+                document.getElementById('paginationInfo').innerText = "Data load failed.";
+            }
+        };
+
+        // 2. Push data to Firebase
+        window.saveData = function() {
+            set(ref(db, 'indiglobData'), {
+                products: window.products,
+                suppliers: window.suppliers
+            }).catch((error) => {
+                console.error("Error saving data to Firebase:", error);
+                window.customAlert("Sync Error", "Failed to save data to cloud. Please try again.", "error");
+            });
+        };
+
+        // --- UTILITY FUNCTIONS ---
+
+        window.getFormattedDate = function() {
+            const d = new Date();
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`; // e.g., 1 Oct 2026
+        };
+
+        window.escapeHtml = function(unsafe) {
+            return (unsafe || '').toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        };
+
+        // --- CUSTOM ALERTS ---
+
+        window.customAlert = function(title, message, type = 'info', confirmCallback = null) {
+            document.getElementById('alertTitle').innerText = title;
+            document.getElementById('alertMessage').innerText = message;
+            
+            const iconContainer = document.getElementById('alertIconContainer');
+            const icon = document.getElementById('alertIcon');
+            const actions = document.getElementById('alertActions');
+
+            if (type === 'error') {
+                iconContainer.className = 'mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10';
+                icon.className = 'ph ph-warning-circle text-red-600 text-xl';
+                actions.innerHTML = `<button onclick="window.closeAlert()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium">Close</button>`;
+            } else if (type === 'confirm') {
+                iconContainer.className = 'mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-amber-100 sm:mx-0 sm:h-10 sm:w-10';
+                icon.className = 'ph ph-trash text-amber-600 text-xl';
+                window.currentConfirmCallback = confirmCallback;
+                actions.innerHTML = `
+                    <button onclick="window.closeAlert()" class="px-4 py-2 border border-gray-300 text-gray-700 bg-white rounded-lg hover:bg-gray-50 text-sm font-medium">Cancel</button>
+                    <button onclick="window.executeConfirm()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium shadow-sm">Delete</button>
+                `;
+            } else {
+                iconContainer.className = 'mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10';
+                icon.className = 'ph ph-info text-blue-600 text-xl';
+                actions.innerHTML = `<button onclick="window.closeAlert()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">OK</button>`;
+            }
+            document.getElementById('alertModal').classList.remove('hidden');
+        };
+
+        window.closeAlert = function() {
+            document.getElementById('alertModal').classList.add('hidden');
+            window.currentConfirmCallback = null;
+        };
+
+        window.executeConfirm = function() {
+            if (typeof window.currentConfirmCallback === 'function') window.currentConfirmCallback();
+            window.closeAlert();
+        };
+
+        // --- MAIN TABLE RENDERING ---
+
+        window.renderTable = function() {
+            const thead = document.getElementById('tableHeaderRow');
+            const tbody = document.getElementById('tableBody');
+            
+            // Dynamic Headers
+            let headersHTML = `
+                <th class="px-4 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-16">Image</th>
+                <th class="px-4 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider min-w-[200px]">Product Name</th>
+                <th class="px-4 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-32 border-r border-gray-200">Crtn Size</th>
+            `;
+            
+            window.suppliers.forEach(supplier => {
+                const displayName = supplier.nickName || supplier.companyName;
+                headersHTML += `
+                    <th class="px-4 py-3 text-left border-r border-gray-200 bg-[#f8faff] min-w-[140px]">
+                        <div class="text-xs font-bold text-indigo-700 uppercase tracking-wider truncate" title="${supplier.companyName}">${displayName}</div>
+                        <div class="text-[10px] font-semibold text-indigo-400 uppercase mt-0.5 tracking-wider">Rate (₹)</div>
+                    </th>`;
+            });
+            
+            headersHTML += `<th class="px-4 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-20">Action</th>`;
+            thead.innerHTML = headersHTML;
+
+            // Pagination setup
+            const totalItems = window.filteredProducts.length;
+            const totalPages = Math.ceil(totalItems / window.itemsPerPage) || 1;
+            if (window.currentPage > totalPages) window.currentPage = totalPages;
+            
+            const startIdx = (window.currentPage - 1) * window.itemsPerPage;
+            const endIdx = Math.min(startIdx + window.itemsPerPage, totalItems);
+            const currentItems = window.filteredProducts.slice(startIdx, endIdx);
+
+            document.getElementById('paginationInfo').innerText = `Showing ${currentItems.length} products`;
+            document.getElementById('paginationDetails').innerHTML = `Showing <span class="font-medium">${totalItems > 0 ? startIdx + 1 : 0}</span> to <span class="font-medium">${endIdx}</span> of <span class="font-medium">${totalItems}</span>`;
+            
+            if (currentItems.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="${4 + window.suppliers.length}" class="px-6 py-16 text-center text-gray-400 bg-white"><i class="ph ph-package text-5xl mb-3 block opacity-20"></i>No products found. Add a product to get started.</td></tr>`;
+                window.renderPagination(totalPages);
+                return;
+            }
+
+            // Build Rows
+            let rowsHTML = '';
+            currentItems.forEach(product => {
+                const imageSrc = (product.images && product.images.length > 0) ? product.images[0] : `https://placehold.co/100x100/f1f5f9/94a3b8?text=No+Img`;
+                
+                rowsHTML += `
+                    <tr class="hover:bg-blue-50/20 group">
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            <img src="${imageSrc}" class="h-11 w-11 rounded-lg object-cover border border-gray-200 hover-expand cursor-pointer bg-white" onerror="this.src='https://placehold.co/100x100/f1f5f9/94a3b8?text=Error'">
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            <div class="text-sm font-semibold text-blue-600 cursor-pointer hover:text-blue-800 transition-colors" onclick="window.editProduct('${product.id}')">${window.escapeHtml(product.name)}</div>
+                            <div class="text-[10px] text-gray-400 mt-1 font-medium">${product.images?.length || 0}/5 images</div>
+                        </td>
+                        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-700 font-medium border-r border-gray-100">${window.escapeHtml(product.crtnSize)}</td>
+                `;
+
+                // Empty shell cells for Supplier Prices
+                window.suppliers.forEach(supplier => {
+                    rowsHTML += `
+                        <td id="cell-${product.id}-${supplier.id}" 
+                            class="px-4 py-3 whitespace-nowrap border-r border-gray-100 cursor-pointer hover:bg-indigo-50/40 transition-colors relative" 
+                            onclick="window.startInlineEdit(event, '${product.id}', '${supplier.id}')">
+                        </td>`;
+                });
+
+                rowsHTML += `
+                        <td class="px-4 py-3 whitespace-nowrap text-center">
+                            <button onclick="window.deleteProduct('${product.id}')" class="text-gray-400 hover:text-red-600 transition-colors p-1.5 rounded hover:bg-red-50" title="Delete Product">
+                                <i class="ph ph-trash text-lg"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+            });
+            
+            tbody.innerHTML = rowsHTML;
+            
+            // Post-render: fill price cells safely
+            currentItems.forEach(product => {
+                window.suppliers.forEach(supplier => {
+                    const cell = document.getElementById(`cell-${product.id}-${supplier.id}`);
+                    if (cell) window.renderCellContent(cell, product.id, supplier.id);
+                });
+            });
+
+            window.renderPagination(totalPages);
+        };
+
+        // --- INLINE EDITING LOGIC ---
+
+        window.renderCellContent = function(cellElement, productId, supplierId) {
+            const product = window.products.find(p => p.id === productId);
+            if (!product) return;
+            
+            const rateData = product.supplierRates ? product.supplierRates[supplierId] : null;
+            
+            let displayRate = '<span class="text-gray-300 text-sm italic font-light">Set price</span>';
+            let dateStr = '';
+            
+            if (rateData && rateData.rate) {
+                displayRate = `₹ <span class="font-semibold">${parseFloat(rateData.rate).toLocaleString('en-IN')}</span>`;
+                if (rateData.date) {
+                    dateStr = `<div class="text-[9px] font-medium text-gray-400 mt-1 uppercase tracking-tight">${rateData.date}</div>`;
+                }
+            }
+            
+            cellElement.innerHTML = `
+                <div class="flex items-center justify-between min-h-[36px] w-full group/cell">
+                    <div class="flex flex-col">
+                        <div class="text-sm text-gray-900">${displayRate}</div>
+                        ${dateStr}
+                    </div>
+                    <i class="ph ph-pencil-simple text-gray-300 opacity-0 group-hover/cell:opacity-100 transition-opacity text-sm ml-2"></i>
+                </div>
+            `;
+        };
+
+        window.startInlineEdit = function(event, productId, supplierId) {
+            const cellElement = event.currentTarget;
+            
+            // Prevent duplicate input wrappers
+            if (cellElement.querySelector('input')) return;
+            
+            const product = window.products.find(p => p.id === productId);
+            const rateData = product.supplierRates ? product.supplierRates[supplierId] : null;
+            const currentVal = (rateData && rateData.rate) ? rateData.rate : '';
+            
+            cellElement.innerHTML = '';
+            
+            const wrapper = document.createElement('div');
+            wrapper.className = 'flex items-center gap-1.5 min-h-[36px] w-full';
+            
+            const symbol = document.createElement('span');
+            symbol.className = 'text-gray-500 text-sm font-medium';
+            symbol.innerText = '₹';
+            
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.step = '0.01';
+            input.className = 'w-full min-w-[70px] max-w-[120px] px-2 py-1 text-sm border border-blue-400 rounded outline-none focus:ring-2 focus:ring-blue-100 shadow-inner font-medium text-gray-900';
+            input.value = currentVal;
+            
+            wrapper.appendChild(symbol);
+            wrapper.appendChild(input);
+            cellElement.appendChild(wrapper);
+            
+            input.focus();
+            input.select();
+            
+            let isSaved = false;
+            
+            const saveAndClose = () => {
+                if (isSaved) return;
+                isSaved = true;
+                
+                const val = input.value.trim();
+                const productIndex = window.products.findIndex(p => p.id === productId);
+                
+                if (productIndex !== -1) {
+                    // Ensure the supplierRates object exists on the product
+                    if (!window.products[productIndex].supplierRates) {
+                        window.products[productIndex].supplierRates = {};
+                    }
+
+                    if (val !== '' && parseFloat(val) >= 0) {
+                        window.products[productIndex].supplierRates[supplierId] = {
+                            rate: parseFloat(val).toString(),
+                            date: window.getFormattedDate()
+                        };
+                    } else {
+                        delete window.products[productIndex].supplierRates[supplierId];
+                    }
+                    
+                    // Sync to Firebase Database
+                    window.saveData();
+                    
+                    // Keep filtered array in sync immediately for local view
+                    const filteredIndex = window.filteredProducts.findIndex(p => p.id === productId);
+                    if (filteredIndex !== -1) {
+                        window.filteredProducts[filteredIndex] = window.products[productIndex];
+                    }
+                }
+                
+                window.renderCellContent(cellElement, productId, supplierId);
+            };
+
+            input.addEventListener('blur', saveAndClose);
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    input.blur(); 
+                } else if (e.key === 'Escape') {
+                    isSaved = true; 
+                    window.renderCellContent(cellElement, productId, supplierId); 
+                }
+            });
+        };
+
+        // --- SEARCH AND PAGINATION ---
+
+        window.handleSearch = function() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const searchTerms = query.split(' ').filter(term => term.trim() !== '');
+            
+            window.filteredProducts = window.products.filter(p => {
+                const productName = p.name.toLowerCase();
+                // Match ALL space-separated partial terms against the product name
+                return searchTerms.every(term => productName.includes(term));
+            });
+            
+            window.currentPage = 1;
+            window.renderTable();
+        };
+
+        window.renderPagination = function(totalPages) {
+            const container = document.getElementById('pageNumbers');
+            let html = '';
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= window.currentPage - 1 && i <= window.currentPage + 1)) {
+                    html += `<button onclick="window.goToPage(${i})" class="relative inline-flex items-center px-3 py-2 border border-gray-300 bg-white text-sm font-medium ${i === window.currentPage ? 'text-blue-600 bg-blue-50 z-10 border-blue-300' : 'text-gray-700 hover:bg-gray-50'}">${i}</button>`;
+                } else if (i === window.currentPage - 2 || i === window.currentPage + 2) {
+                    html += `<span class="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-400">...</span>`;
+                }
+            }
+            container.innerHTML = html;
+        };
+
+        window.prevPage = function() { if (window.currentPage > 1) { window.currentPage--; window.renderTable(); } };
+        window.nextPage = function() {
+            const totalPages = Math.ceil(window.filteredProducts.length / window.itemsPerPage);
+            if (window.currentPage < totalPages) { window.currentPage++; window.renderTable(); }
+        };
+        window.goToPage = function(page) { window.currentPage = page; window.renderTable(); };
+
+        // --- SUPPLIER MANAGEMENT ---
+
+        window.openSupplierManager = function(focusAdd = false) {
+            window.renderSupplierList();
+            document.getElementById('supplierManagerModal').classList.remove('hidden');
+            if(focusAdd) setTimeout(() => document.getElementById('supName').focus(), 100);
+        };
+
+        window.closeSupplierManager = function() {
+            document.getElementById('supplierManagerModal').classList.add('hidden');
+            window.resetSupplierForm();
+        };
+
+        window.resetSupplierForm = function() {
+            document.getElementById('supplierForm').reset();
+            document.getElementById('editingSupplierId').value = '';
+            document.getElementById('supplierFormSubmitBtn').innerText = 'Save Supplier';
+            document.getElementById('supplierFormTitle').innerHTML = '<i class="ph ph-user-plus"></i> Add New Supplier';
+        };
+
+        window.renderSupplierList = function() {
+            const container = document.getElementById('supplierListContainer');
+            document.getElementById('supplierCountBadge').innerText = window.suppliers.length;
+            
+            if (window.suppliers.length === 0) {
+                container.innerHTML = '<div class="text-sm text-gray-500 italic p-4 text-center bg-slate-50 border border-dashed border-gray-200 rounded-lg">No suppliers found. Create one.</div>';
+                return;
+            }
+
+            let html = '';
+            window.suppliers.forEach(sup => {
+                html += `
+                    <div class="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:border-indigo-300 bg-white shadow-sm transition-colors group">
+                        <div class="overflow-hidden pr-2">
+                            <div class="font-semibold text-gray-900 text-sm truncate">${window.escapeHtml(sup.companyName)} 
+                                ${sup.nickName ? `<span class="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded ml-1 tracking-wide">${window.escapeHtml(sup.nickName)}</span>` : ''}
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                                <span class="flex items-center gap-1"><i class="ph ph-user text-gray-400"></i> ${window.escapeHtml(sup.name)}</span>
+                                ${sup.contact ? `<span class="flex items-center gap-1"><i class="ph ph-phone text-gray-400"></i> ${window.escapeHtml(sup.contact)}</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                            <button onclick="window.editSupplier('${sup.id}')" class="text-blue-500 hover:bg-blue-50 p-2 rounded transition-colors" title="Edit">
+                                <i class="ph ph-pencil-simple text-lg"></i>
+                            </button>
+                            <button onclick="window.confirmDeleteSupplier('${sup.id}')" class="text-red-500 hover:bg-red-50 p-2 rounded transition-colors" title="Delete">
+                                <i class="ph ph-trash text-lg"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        };
+
+        window.editSupplier = function(id) {
+            const sup = window.suppliers.find(s => s.id === id);
+            if (!sup) return;
+            
+            document.getElementById('editingSupplierId').value = sup.id;
+            document.getElementById('supName').value = sup.name || '';
+            document.getElementById('supCompany').value = sup.companyName || '';
+            document.getElementById('supNick').value = sup.nickName || '';
+            document.getElementById('supContact').value = sup.contact || '';
+            document.getElementById('supAddress').value = sup.address || '';
+            
+            document.getElementById('supplierFormSubmitBtn').innerText = 'Update Supplier';
+            document.getElementById('supplierFormTitle').innerHTML = '<i class="ph ph-pencil-simple"></i> Edit Supplier';
+        };
+
+        window.handleSupplierSubmit = function(e) {
+            e.preventDefault();
+            const editingId = document.getElementById('editingSupplierId').value;
+            const name = document.getElementById('supName').value.trim();
+            const companyName = document.getElementById('supCompany').value.trim();
+            const nickName = document.getElementById('supNick').value.trim();
+            const contact = document.getElementById('supContact').value.trim();
+            const address = document.getElementById('supAddress').value.trim();
+            
+            if (editingId) {
+                const index = window.suppliers.findIndex(s => s.id === editingId);
+                if (index !== -1) {
+                    window.suppliers[index] = { ...window.suppliers[index], name, companyName, nickName, contact, address };
+                }
+            } else {
+                const newSupplier = { id: 'sup_' + Date.now(), name, companyName, nickName, contact, address };
+                window.suppliers.push(newSupplier);
+            }
+            
+            window.saveData();
+            window.resetSupplierForm();
+            window.renderSupplierList();
+            window.renderTable(); 
+            
+            const btn = document.getElementById('supplierFormSubmitBtn');
+            btn.innerHTML = '<i class="ph ph-check text-lg"></i>';
+            btn.classList.add('bg-green-600');
+            setTimeout(() => {
+                btn.innerHTML = 'Save Supplier';
+                btn.classList.remove('bg-green-600');
+            }, 1000);
+        };
+
+        window.confirmDeleteSupplier = function(id) {
+            const sup = window.suppliers.find(s => s.id === id);
+            window.customAlert("Delete Supplier", `Permanently delete '${sup.companyName}'? All their prices will be wiped from products.`, "confirm", () => {
+                window.suppliers = window.suppliers.filter(s => s.id !== id);
+                
+                window.products.forEach(p => {
+                    if (p.supplierRates && p.supplierRates[id]) delete p.supplierRates[id];
+                });
+                
+                window.saveData();
+                window.renderSupplierList();
+                window.handleSearch(); 
+            });
+        };
+
+        // --- PRODUCT MANAGEMENT ---
+
+        window.generateImageInputs = function(existingImages = []) {
+            const container = document.getElementById('imageUploadContainer');
+            const hiddenContainer = document.getElementById('existingImagesContainer');
+            
+            container.innerHTML = '';
+            hiddenContainer.innerHTML = '';
+            
+            existingImages.forEach((img, index) => {
+                hiddenContainer.innerHTML += `<input type="hidden" id="storedImg${index + 1}" value="${window.escapeHtml(img)}">`;
+            });
+
+            for (let i = 1; i <= 5; i++) {
+                const imgData = existingImages[i-1] || '';
+                const bgStyle = imgData ? `background-image: url(${imgData});` : '';
+                const hiddenClass = imgData ? '' : 'hidden';
+                
+                container.innerHTML += `
+                    <div class="relative group border-2 border-dashed border-gray-300 rounded-lg text-center hover:border-blue-500 transition-colors h-24 flex flex-col items-center justify-center cursor-pointer bg-gray-50 overflow-hidden">
+                        <input type="file" id="prodImg${i}" accept="image/jpeg, image/png, image/webp" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" onchange="window.previewImage(this, 'imgPreview${i}')">
+                        <div class="z-10 flex flex-col items-center">
+                            <i class="ph ph-image text-gray-400 text-2xl mb-1 group-hover:text-blue-500"></i>
+                            <span class="text-[10px] font-medium text-gray-500 group-hover:text-blue-600">Img ${i}</span>
+                        </div>
+                        <div id="imgPreview${i}" class="absolute inset-0 bg-cover bg-center bg-no-repeat bg-white z-[15] ${hiddenClass}" style="${bgStyle}">
+                            <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-medium z-10 pointer-events-none">Change</div>
+                        </div>
+                    </div>
+                `;
+            }
+        };
+
+        window.previewImage = function(input, previewId) {
+            const previewDiv = document.getElementById(previewId);
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    previewDiv.style.backgroundImage = `url(${e.target.result})`;
+                    previewDiv.classList.remove('hidden');
+                    input.dataset.base64 = e.target.result; 
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        };
+
+        window.openProductModal = function() {
+            document.getElementById('productForm').reset();
+            document.getElementById('editingProductId').value = '';
+            document.getElementById('productModalTitle').innerHTML = '<i class="ph-fill ph-package text-blue-600 text-xl"></i> Add New Product';
+            window.generateImageInputs();
+            document.getElementById('productModal').classList.remove('hidden');
+        };
+
+        window.editProduct = function(id) {
+            const product = window.products.find(p => p.id === id);
+            if (!product) return;
+
+            document.getElementById('productForm').reset();
+            document.getElementById('editingProductId').value = id;
+            document.getElementById('productModalTitle').innerHTML = '<i class="ph-fill ph-pencil-simple text-blue-600 text-xl"></i> Edit Product';
+            
+            document.getElementById('prodName').value = product.name;
+            document.getElementById('prodSize').value = product.crtnSize;
+            
+            window.generateImageInputs(product.images || []);
+            document.getElementById('productModal').classList.remove('hidden');
+        };
+
+        window.closeProductModal = function() {
+            document.getElementById('productModal').classList.add('hidden');
+        };
+
+        window.handleProductSubmit = function(e) {
+            e.preventDefault();
+            const editingId = document.getElementById('editingProductId').value;
+            const name = document.getElementById('prodName').value.trim();
+            const size = document.getElementById('prodSize').value.trim();
+            
+            const images = [];
+            for (let i = 1; i <= 5; i++) {
+                const fileInput = document.getElementById(`prodImg${i}`);
+                const storedInput = document.getElementById(`storedImg${i}`);
+                
+                if (fileInput && fileInput.dataset.base64) {
+                    images.push(fileInput.dataset.base64);
+                } else if (storedInput && storedInput.value) {
+                    images.push(storedInput.value);
+                }
+            }
+
+            if (editingId) {
+                const index = window.products.findIndex(p => p.id === editingId);
+                if (index !== -1) {
+                    window.products[index].name = name;
+                    window.products[index].crtnSize = size;
+                    window.products[index].images = images;
+                }
+            } else {
+                const newProduct = {
+                    id: 'prod_' + Date.now(),
+                    name: name,
+                    crtnSize: size,
+                    images: images,
+                    supplierRates: {} 
+                };
+                window.products.unshift(newProduct);
+            }
+            
+            window.saveData();
+            window.handleSearch(); 
+            window.closeProductModal();
+        };
+
+        window.deleteProduct = function(id) {
+            window.customAlert("Delete Product", "Are you sure you want to permanently delete this product?", "confirm", () => {
+                window.products = window.products.filter(p => p.id !== id);
+                window.saveData();
+                window.handleSearch();
+            });
+        };
+
+        // --- EXPORT TO CSV ---
+
+        window.exportToCSV = function() {
+            if (window.filteredProducts.length === 0) {
+                window.customAlert("Export Error", "No data to export.", "error");
+                return;
+            }
+
+            let csvContent = "data:text/csv;charset=utf-8,";
+            
+            // Header Row
+            let row = ["Product Name", "Crtn Size"];
+            window.suppliers.forEach(s => {
+                const cleanName = (s.nickName || s.companyName).replace(/,/g, '');
+                row.push(`${cleanName} Rate (INR)`);
+                row.push(`${cleanName} Date Updated`);
+            });
+            csvContent += row.join(",") + "\r\n";
+
+            // Data Rows
+            window.filteredProducts.forEach(product => {
+                let dataRow = [
+                    `"${product.name.replace(/"/g, '""')}"`,
+                    `"${product.crtnSize.replace(/"/g, '""')}"`
+                ];
+                
+                window.suppliers.forEach(s => {
+                    const rateData = product.supplierRates ? product.supplierRates[s.id] : null;
+                    if(rateData && rateData.rate) {
+                        dataRow.push(rateData.rate);
+                        dataRow.push(rateData.date || "");
+                    } else {
+                        dataRow.push("");
+                        dataRow.push("");
+                    }
+                });
+                
+                csvContent += dataRow.join(",") + "\r\n";
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `Indiglob_Catalog_Export_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+
+        // Initialize App
+        window.loadData();
+        
+    </script>
+</body>
+</html>
